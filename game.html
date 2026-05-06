@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>チヌクエスト</title>
+<title>チヌクエスト - ゲーム</title>
 <link href="https://fonts.googleapis.com/css2?family=DotGothic16&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
 <style>
 
@@ -19,7 +19,8 @@
 html,body{background:var(--bg);color:var(--text);font-family:'Noto Sans JP',sans-serif;min-height:100vh;overflow-x:hidden;max-width:480px;margin:0 auto}
 
 /* ===== 画面切替 ===== */
-.screen{display:none}.screen.active{display:block}
+.screen{display:none !important}.screen.active{display:block !important}
+#resultScreen.active{display:flex !important}
 
 /* ===== 共通ボタン ===== */
 .btn{width:100%;padding:14px;border:2px solid var(--border2);border-radius:8px;background:var(--bg3);color:var(--text-gold);cursor:pointer;font-family:'DotGothic16',monospace;font-size:14px;letter-spacing:1px;transition:all .15s;text-align:center;-webkit-user-select:none;user-select:none;display:block;margin-bottom:8px}
@@ -193,7 +194,8 @@ html,body{background:var(--bg);color:var(--text);font-family:'Noto Sans JP',sans
 .cell-popup-row span{color:var(--text)}
 
 /* ===== 結果画面 ===== */
-#resultScreen{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;background:radial-gradient(ellipse at 50% 0%,#1a2030 0%,var(--bg) 70%)}
+#resultScreen{min-height:100vh;flex-direction:column;align-items:center;justify-content:center;padding:20px;background:radial-gradient(ellipse at 50% 0%,#1a2030 0%,var(--bg) 70%)}
+#resultScreen.active{display:flex}
 .final-title{font-family:'DotGothic16',monospace;font-size:22px;color:var(--text-gold);letter-spacing:4px;text-align:center;margin-bottom:20px}
 .final-rank-list{width:100%;max-width:380px;display:flex;flex-direction:column;gap:8px;margin-bottom:24px}
 .final-rank-item{display:flex;align-items:center;gap:12px;padding:12px;border-radius:8px;border:1px solid var(--border);background:var(--bg2)}
@@ -204,119 +206,108 @@ html,body{background:var(--bg);color:var(--text);font-family:'Noto Sans JP',sans
 .final-rank-name{font-size:13px;font-weight:700;margin-bottom:2px}
 .final-rank-assets{font-size:11px;color:var(--text-gold);font-family:'DotGothic16',monospace}
 
-/* タイトル専用 */
-body{overflow-y:auto}
+/* ゲーム専用 */
+body{overflow-y:auto;max-width:480px;margin:0 auto}
+.screen{display:none !important}.screen.active{display:block !important}
+#resultScreen.active{display:flex !important}
 </style>
 </head>
 <body>
 
+<!-- ===== ゲーム画面 ===== -->
+<div class="screen" id="gameScreen">
+  <!-- ステータスバー -->
+  <div class="status-bar" id="statusBar"></div>
 
-<!-- ===== タイトル画面 ===== -->
-<div class="screen active" id="titleScreen">
-  <div style="min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;gap:0;background:radial-gradient(ellipse at 50% 0%,#1a2030 0%,var(--bg) 70%)">
-    <div class="title-logo">チヌクエスト</div>
-    <div class="title-sub">— CHINU QUEST —</div>
+  <!-- ボード -->
+  <div class="board-area">
+    <canvas id="boardCanvas"></canvas>
+  </div>
 
-    <div class="title-form">
-      <!-- 名前入力 -->
-      <div class="panel">
-        <div class="panel-title">プレイヤー情報</div>
-        <label class="input-label">プレイヤー名（最大8文字）</label>
-        <input class="input" id="nameInput" maxlength="8" placeholder="名前を入力">
+  <!-- メッセージ -->
+  <div class="msg-box" id="msgBox">チヌクエスト スタート！<span class="msg-cursor">█</span></div>
 
-        <div style="margin-top:10px">
-          <label class="input-label">ルームコード（参加する場合）</label>
-          <input class="input" id="roomCodeInput" maxlength="4" placeholder="4桁のコード（新規作成は空白）" inputmode="numeric" pattern="[0-9]*">
-        </div>
-      </div>
+  <!-- ダイス -->
+  <div class="dice-row">
+    <div class="dice-face" id="diceDisp">🎲</div>
+    <div class="sub-dice" id="subDiceDisp" style="display:none"></div>
+  </div>
 
-      <!-- キャラ選択 -->
-      <div class="panel">
-        <div class="panel-title">キャラクター選択</div>
-        <div class="char-grid" id="charGrid"></div>
-        <div id="charDetail" style="margin-top:10px;font-size:11px;color:var(--text-dim);line-height:1.7;min-height:36px"></div>
-      </div>
+  <!-- コマンド -->
+  <div class="cmd-area" id="cmdArea">
+    <button class="btn gray" disabled>接続中…</button>
+  </div>
 
-      <button class="btn green" id="enterBtn" onclick="handleEnter()">▶ ゲームに参加する</button>
-      <div id="enterError" style="font-size:11px;color:var(--fire);text-align:center;min-height:16px"></div>
-    </div>
+  <!-- ログ -->
+  <div class="log-section">
+    <button class="log-toggle" onclick="toggleLog()">
+      <span>📜 ゲームログ</span>
+      <span id="logArrow">▼</span>
+    </button>
+    <div class="log-body" id="logBody"></div>
   </div>
 </div>
 
-<!-- ===== 管理者画面 ===== -->
-<div class="screen" id="adminScreen">
-  <div style="padding:16px;max-width:480px">
-    <div style="font-family:'DotGothic16',monospace;font-size:16px;color:var(--text-gold);text-align:center;letter-spacing:3px;margin:16px 0">👑 管理者設定</div>
+<!-- ===== 戦闘画面 ===== -->
+<div class="screen" id="battleScreen">
+  <div class="battle-header" id="battleHeader">⚔ 戦闘</div>
 
-    <!-- ルームコード表示 -->
-    <div class="panel">
-      <div class="panel-title">ルームコード</div>
-      <div class="room-code" id="displayRoomCode">----</div>
-      <div class="room-code-copy">参加者にこのコードを伝えてください</div>
-    </div>
-
-    <!-- ゲーム設定 -->
-    <div class="panel">
-      <div class="panel-title">ゲーム設定</div>
-
-      <div class="setting-row">
-        <span class="setting-label">参加人数</span>
-        <div class="setting-btns">
-          <button class="mini-btn" onclick="setPlayers(2)" id="p2btn">2人</button>
-          <button class="mini-btn" onclick="setPlayers(3)" id="p3btn">3人</button>
-          <button class="mini-btn active" onclick="setPlayers(4)" id="p4btn">4人</button>
-        </div>
-      </div>
-
-      <div class="setting-row">
-        <span class="setting-label">目標総資産</span>
-        <div class="setting-btns">
-          <button class="mini-btn" onclick="setGoal(5000)" id="g5btn">5000</button>
-          <button class="mini-btn active" onclick="setGoal(10000)" id="g10btn">10000</button>
-          <button class="mini-btn" onclick="setGoal(20000)" id="g20btn">20000</button>
-        </div>
-      </div>
-
-      <div class="setting-row">
-        <span class="setting-label">マップ</span>
-        <span class="setting-value">スタンダード（18マス）</span>
+  <div class="battle-hud">
+    <div class="bhud-box player-side">
+      <div class="bhud-name" style="color:var(--water)" id="b-pname">プレイヤー</div>
+      <div class="bhud-hp-wrap"><div class="bhud-hp" id="b-php" style="width:100%;background:var(--hg)"></div></div>
+      <div class="bhud-stats">
+        HP基礎:<span id="b-pbhp">—</span> 加算:<span id="b-pahp">—</span><br>
+        ATK:<span id="b-patk">—</span>
       </div>
     </div>
-
-    <!-- 参加者一覧 -->
-    <div class="panel">
-      <div class="panel-title">参加者 <span id="playerCount" style="color:var(--text-gold)">1</span>/<span id="maxPlayers">4</span></div>
-      <div class="player-list" id="adminPlayerList"></div>
+    <div class="bhud-vs">VS</div>
+    <div class="bhud-box monster-side">
+      <div class="bhud-name" style="color:var(--fire)" id="b-mname">モンスター</div>
+      <div class="bhud-hp-wrap"><div class="bhud-hp" id="b-mhp" style="width:100%;background:var(--hg)"></div></div>
+      <div class="bhud-stats">
+        HP:<span id="b-mhpnum">—</span>/<span id="b-mhpmax">—</span><br>
+        ATK:<span id="b-matk">—</span>
+      </div>
     </div>
+  </div>
 
-    <button class="btn green" id="addAiBtn" onclick="addAI()">🤖 AIプレイヤーを追加</button>
-    <button class="btn gold" id="startGameBtn" onclick="adminStartGame()" disabled>▶ ゲームスタート</button>
-    <div id="adminError" style="font-size:11px;color:var(--fire);text-align:center;margin-top:4px;min-height:16px"></div>
+  <div class="battle-field" id="battleField">
+    <div style="position:absolute;bottom:0;left:0;right:0;height:40%;background:linear-gradient(180deg,#141e10,#0d1608);border-top:2px solid #2a3a20"></div>
+    <div class="sprite-player" id="spritePlayer">🐟</div>
+    <div class="sprite-monster" id="spriteMonster">👾</div>
+  </div>
+
+  <div class="battle-msg" id="battleMsg">▼<span class="msg-cursor">█</span></div>
+  <div class="battle-cmd" id="battleCmd"></div>
+  <div class="battle-result" id="battleResult" style="display:none">
+    <div class="result-banner" id="resultBanner"></div>
+    <div class="result-detail" id="resultDetail"></div>
+    <div class="battle-cmd" id="resultCmd" style="justify-content:center"></div>
   </div>
 </div>
 
-<!-- ===== 待機画面 ===== -->
-<div class="screen" id="waitScreen">
-  <div style="padding:16px">
-    <div style="font-family:'DotGothic16',monospace;font-size:14px;color:var(--text-dim);text-align:center;letter-spacing:2px;margin:20px 0">⏳ ゲーム開始を待っています…</div>
-
-    <div class="panel">
-      <div class="panel-title">ルームコード</div>
-      <div class="room-code" id="waitRoomCode" style="font-size:28px">----</div>
-    </div>
-
-    <div class="panel">
-      <div class="panel-title">参加者</div>
-      <div class="player-list" id="waitPlayerList"></div>
-    </div>
-
-    <div style="font-size:11px;color:var(--text-dim);text-align:center;margin-top:8px">管理者がゲームを開始するまでお待ちください</div>
+<!-- ===== 売却画面 ===== -->
+<div class="screen" id="sellScreen">
+  <div class="sell-header">
+    <div class="sell-title">💸 ゴールド不足！ 土地を売却してください</div>
+    <div class="sell-desc" id="sellDesc"></div>
+  </div>
+  <div class="sell-list" id="sellList"></div>
+  <div class="sell-footer">
+    <div class="sell-status" id="sellStatus"></div>
+    <button class="btn green" id="sellDoneBtn" onclick="finishSell()" disabled>✔ 売却を確定する</button>
   </div>
 </div>
 
+<!-- ===== 結果画面 ===== -->
+<div class="screen" id="resultScreen">
+  <div class="final-title">🏆 ゲーム終了</div>
+  <div class="final-rank-list" id="finalRankList"></div>
+  <button class="btn gray" style="max-width:340px" onclick="window.location.href='index.html'">▶ タイトルに戻る</button>
+</div>
 
-
-<!-- オーバーレイ -->
+<!-- オーバーレイ（装備選択・スペル選択など） -->
 <div class="overlay" id="overlay">
   <div class="overlay-sheet">
     <div class="ov-title" id="ovTitle"></div>
@@ -325,6 +316,43 @@ body{overflow-y:auto}
   </div>
 </div>
 
+<!-- マス詳細ポップアップ -->
+<div class="cell-popup" id="cellPopup" onclick="closeCellPopup()">
+  <div class="cell-popup-box" onclick="event.stopPropagation()">
+    <div class="cell-popup-title" id="cpTitle"></div>
+    <div id="cpRows"></div>
+    <button class="btn gray" style="margin-top:10px" onclick="closeCellPopup()">閉じる</button>
+  </div>
+</div>
+
+
+
+<!-- オーバーレイ（装備選択・スペル選択など） -->
+<div class="overlay" id="overlay">
+  <div class="overlay-sheet">
+    <div class="ov-title" id="ovTitle"></div>
+    <div class="ov-desc" id="ovDesc"></div>
+    <div class="ov-list" id="ovList"></div>
+  </div>
+</div>
+
+<!-- マス詳細ポップアップ -->
+<div class="cell-popup" id="cellPopup" onclick="closeCellPopup()">
+  <div class="cell-popup-box" onclick="event.stopPropagation()">
+    <div class="cell-popup-title" id="cpTitle"></div>
+    <div id="cpRows"></div>
+    <button class="btn gray" style="margin-top:10px" onclick="closeCellPopup()">閉じる</button>
+  </div>
+</div>
+
+<!-- マス詳細ポップアップ -->
+<div class="cell-popup" id="cellPopup" onclick="closeCellPopup()">
+  <div class="cell-popup-box" onclick="event.stopPropagation()">
+    <div class="cell-popup-title" id="cpTitle"></div>
+    <div id="cpRows"></div>
+    <button class="btn gray" style="margin-top:10px" onclick="closeCellPopup()">閉じる</button>
+  </div>
+</div>
 
 <script>
 // ===== Firebase SDK =====
@@ -507,7 +535,7 @@ const CHARS = [
     desc: '俊敏型・2ターン行動'
   },
   {
-    id: 'fugu', name: 'フグ', icon: '🐡', attr: 'water',
+    id: 'fugu', name: 'フグ', icon: '🐙', attr: 'water',
     baseAtk: 3, baseHp: 50,
     lapAtk: 3, lapHp: 5,
     special: 'ターン終了後に相手の最大HPの20%追加ダメージ（毒）',
@@ -1176,8 +1204,28 @@ onAuthReady(user => {
   }
 });
 
-// Firebaseに非同期でログイン（バックグラウンドで）
+
+// ===== URLパラメータからルーム情報を取得 =====
+const urlParams = new URLSearchParams(window.location.search);
+const _roomFromUrl = urlParams.get('room');
+
+// 認証後にゲーム開始
+onAuthReady(async user => {
+  if (user) {
+    myUid = user.uid;
+    if (_roomFromUrl) {
+      currentRoomCode = _roomFromUrl;
+      // ゲーム画面を表示してFirebase監視開始
+      showScreen('gameScreen');
+      await wait(100);
+      initBoard();
+      watchRoom(currentRoomCode, onRoomUpdate);
+    }
+  }
+});
+
 loginAnonymously().catch(console.error);
+
 
 
 function buildGameWindowUrl(roomCode) {
