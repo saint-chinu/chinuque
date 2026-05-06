@@ -2824,80 +2824,90 @@ async function maybeRunAITurn(state) {
   aiTurnInProgress = true;
   try {
     await wait(600);
-    const latest = await getRoom(currentRoomCode);
-    const currentAI = latest?.players?.[latest?.turn?.uid];
-    if (latest?.status === 'playing' && currentAI?.isAI) {
+    for (let guard = 0; guard < 8; guard++) {
+      const latest = await getRoom(currentRoomCode);
+      roomState = latest || roomState;
+      const currentAI = latest?.players?.[latest?.turn?.uid];
+      if (latest?.status !== 'playing' || !currentAI?.isAI) break;
       await runAI(currentAI);
+      await wait(600);
     }
   } catch (err) {
     console.error('AI turn failed:', err);
     setMsg(`<span style="color:var(--fire)">AIターンでエラーが発生しました。再読み込みしてください。</span>`);
   } finally {
     aiTurnInProgress = false;
+    const latest = await getRoom(currentRoomCode);
+    if (latest?.status === 'playing' && latest.players?.[latest.turn?.uid]?.isAI) {
+      setTimeout(() => maybeRunAITurn(latest), 300);
+    }
   }
 }
 
 // ===== AI処理（簡易）=====
 async function runAI(aiPlayer) {
-  const roll = Math.floor(Math.random() * 6) + 1;
-  setMsg(`🤖 ${aiPlayer.name} のターン — ダイス ${roll}`);
-  await wait(800);
+  try {
+    const roll = Math.floor(Math.random() * 6) + 1;
+    setMsg(`🤖 ${aiPlayer.name} のターン — ダイス ${roll}`);
+    await wait(800);
 
-  let pos = aiPlayer.pos;
-  for (let i = 0; i < roll; i++) {
-    pos = (pos + 1) % N;
-    await updatePlayer(currentRoomCode, aiPlayer.uid, { pos });
-    drawBoard();
-    await wait(250);
-  }
+    let pos = aiPlayer.pos;
+    for (let i = 0; i < roll; i++) {
+      pos = (pos + 1) % N;
+      await updatePlayer(currentRoomCode, aiPlayer.uid, { pos });
+      drawBoard();
+      await wait(250);
+    }
 
-  let latestState = await getRoom(currentRoomCode);
-  roomState = latestState || roomState;
-  aiPlayer = roomState?.players?.[aiPlayer.uid] || { ...aiPlayer, pos };
-  const cells = roomState?.cells || {};
-  const cell = cells[pos];
+    let latestState = await getRoom(currentRoomCode);
+    roomState = latestState || roomState;
+    aiPlayer = roomState?.players?.[aiPlayer.uid] || { ...aiPlayer, pos };
+    const cells = roomState?.cells || {};
+    const cell = cells[pos];
 
-  if (cell?.type === 'empty' && aiPlayer.gold >= 100) {
-    await updatePlayer(currentRoomCode, aiPlayer.uid, {
-      gold: aiPlayer.gold - 100,
-      landAssets: (aiPlayer.landAssets || 0) + 100
-    });
-    await updateCell(currentRoomCode, pos, {
-      type: 'land', owner: aiPlayer.uid, investedCost: 100
-    });
-    // AIは初期モンスター配置
-    if (aiPlayer.monsters?.length > 0) {
-      const mon = aiPlayer.monsters[0];
-      const newMonsters = [...aiPlayer.monsters];
-      newMonsters.splice(0, 1);
-      await updatePlayer(currentRoomCode, aiPlayer.uid, { monsters: newMonsters });
-      await updateCell(currentRoomCode, pos, {
-        attr: mon.attr, monster: { ...mon, currentHp: mon.baseHp }
+    if (cell?.type === 'empty' && aiPlayer.gold >= 100) {
+      await updatePlayer(currentRoomCode, aiPlayer.uid, {
+        gold: aiPlayer.gold - 100,
+        landAssets: (aiPlayer.landAssets || 0) + 100
       });
+      await updateCell(currentRoomCode, pos, {
+        type: 'land', owner: aiPlayer.uid, investedCost: 100
+      });
+      // AIは初期モンスター配置
+      if (aiPlayer.monsters?.length > 0) {
+        const mon = aiPlayer.monsters[0];
+        const newMonsters = [...aiPlayer.monsters];
+        newMonsters.splice(0, 1);
+        await updatePlayer(currentRoomCode, aiPlayer.uid, { monsters: newMonsters });
+        await updateCell(currentRoomCode, pos, {
+          attr: mon.attr, monster: { ...mon, currentHp: mon.baseHp }
+        });
+      }
+    } else if (cell?.type === 'land' && cell?.owner && cell?.owner !== aiPlayer.uid) {
+      // AI：通行料を払う
+      const owner = roomState?.players?.[cell.owner];
+      if (owner) {
+        const toll = Math.floor(calcToll(cell, cell.monster) / 2);
+        await updatePlayer(currentRoomCode, aiPlayer.uid, { gold: Math.max(0, aiPlayer.gold - toll) });
+        await updatePlayer(currentRoomCode, owner.uid, { gold: (owner.gold || 0) + toll });
+      }
     }
-  } else if (cell?.type === 'land' && cell?.owner && cell?.owner !== aiPlayer.uid) {
-    // AI：通行料を払う
-    const owner = roomState?.players?.[cell.owner];
-    if (owner) {
-      const toll = Math.floor(calcToll(cell, cell.monster) / 2);
-      await updatePlayer(currentRoomCode, aiPlayer.uid, { gold: Math.max(0, aiPlayer.gold - toll) });
-      await updatePlayer(currentRoomCode, owner.uid, { gold: (owner.gold || 0) + toll });
+
+    // CP処理
+    if (cell?.type === 'cp' && !aiPlayer.cpDone) {
+      await updatePlayer(currentRoomCode, aiPlayer.uid, { cpDone: true, gold: aiPlayer.gold + 100 });
     }
+    // ゴール処理
+    if (cell?.type === 'goal' || pos === 0) {
+      await handleAIGoal(aiPlayer);
+    }
+  } catch (err) {
+    console.error('runAI failed:', err);
+  } finally {
+    await wait(400);
+    await advanceTurnFrom(aiPlayer.uid);
   }
-
-  // CP処理
-  if (cell?.type === 'cp' && !aiPlayer.cpDone) {
-    await updatePlayer(currentRoomCode, aiPlayer.uid, { cpDone: true, gold: aiPlayer.gold + 100 });
-  }
-  // ゴール処理
-  if (cell?.type === 'goal' || pos === 0) {
-    await handleAIGoal(aiPlayer);
-  }
-
-  await wait(400);
-  await advanceTurnFrom(aiPlayer.uid);
 }
-
 async function handleAIGoal(p) {
   if (p.cpDone) {
     const lapBonus = 500 + (p.lapCount || 0) * 100;
